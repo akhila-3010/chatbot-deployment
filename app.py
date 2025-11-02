@@ -1,32 +1,32 @@
 from flask import Flask, render_template, request, jsonify
-from chat import get_response  # now only uses local NN
 from flask_cors import CORS
-import os
+from chat import get_response
 import nltk
+import os
 
-# Make sure NLTK looks in the virtual environment
+# Set up NLTK data path (if needed)
 nltk.data.path.append(os.path.join("venv", "nltk_data"))
 
 app = Flask(__name__)
-CORS(app)
+CORS(app)  # allow cross-origin requests (for frontend access)
 
-# Serve the main chat page
-@app.get("/")
+# Serve main page
+@app.route("/", methods=["GET"])
 def index_get():
     return render_template("base.html")
 
-# Handle chat messages
-@app.post("/predict")
+# Handle messages from frontend
+@app.route("/predict", methods=["POST"])
 def predict():
-    text = request.get_json().get("message")
-    
-    if not text:
-        return jsonify({"answer": "Please write something."})
+    data = request.get_json()
+    message = data.get("message")
 
-    # Get response from local neural network
-    response = get_response(text)
+    if not message:
+        return jsonify({"answer": "Please type something, babe 😅"})
+
+    response = get_response(message)
     return jsonify({"answer": response})
 
+# Only for local dev (Render uses Gunicorn)
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
-
+    app.run(host="0.0.0.0", port=5000)
