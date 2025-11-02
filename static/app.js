@@ -1,9 +1,9 @@
 class Chatbox {
     constructor() {
         this.args = {
-            openButton: document.querySelector('.chatbox__button button'), // the open chat button
-            chatBox: document.querySelector('.chatbox__support'), // chat window
-            sendButton: document.querySelector('.send__button') // send message button
+            openButton: document.querySelector('.chatbox__button button'),
+            chatBox: document.querySelector('.chatbox__support'),
+            sendButton: document.querySelector('.send__button')
         };
 
         this.state = false;
@@ -13,18 +13,12 @@ class Chatbox {
     display() {
         const { openButton, chatBox, sendButton } = this.args;
 
-        // Toggle chatbox open/close
         openButton.addEventListener('click', () => this.toggleState(chatBox));
-
-        // Send message on button click
         sendButton.addEventListener('click', () => this.onSendButton(chatBox));
 
-        // Send message when pressing Enter
         const node = chatBox.querySelector('input');
         node.addEventListener("keyup", ({ key }) => {
-            if (key === "Enter") {
-                this.onSendButton(chatBox);
-            }
+            if (key === "Enter") this.onSendButton(chatBox);
         });
     }
 
@@ -33,50 +27,54 @@ class Chatbox {
         chatbox.classList.toggle('chatbox--active', this.state);
     }
 
-    onSendButton(chatbox) {
+    async onSendButton(chatbox) {
         const textField = chatbox.querySelector('input');
         const userMessage = textField.value.trim();
-
         if (userMessage === "") return;
 
-        // Push user message
+        // Push user message immediately
         this.messages.push({ name: "User", message: userMessage });
         this.updateChatText(chatbox);
         textField.value = '';
 
-        // 🌐 Send request to Flask API hosted on Render
-        fetch("https://chatbot-deployment-4ldi.onrender.com/predict", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ message: userMessage }),
-        })
-        .then(response => response.json())
-        .then(data => {
-            // Push bot reply
+        try {
+            const response = await fetch("https://chatbot-deployment-4ldi.onrender.com/predict", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ message: userMessage }),
+            });
+
+            // Check if response is valid JSON
+            const contentType = response.headers.get("content-type");
+            if (!response.ok) {
+                throw new Error(`Server returned ${response.status}`);
+            }
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("Invalid response type (expected JSON).");
+            }
+
+            const data = await response.json();
             this.messages.push({ name: "Sam", message: data.answer });
-            this.updateChatText(chatbox);
-        })
-        .catch(error => {
+        } 
+        catch (error) {
             console.error("Error:", error);
-            this.messages.push({ name: "Sam", message: "Error connecting to server." });
-            this.updateChatText(chatbox);
-        });
+            this.messages.push({ name: "Sam", message: "⚠️ Server error. Please try again later." });
+        }
+
+        this.updateChatText(chatbox);
     }
 
     updateChatText(chatbox) {
-        let html = '';
-        this.messages.slice().reverse().forEach(item => {
-            if (item.name === "Sam") {
-                html += `<div class="messages__item messages__item--operator">${item.message}</div>`;
-            } else {
-                html += `<div class="messages__item messages__item--visitor">${item.message}</div>`;
-            }
-        });
-
         const chatMessage = chatbox.querySelector('.chatbox__messages');
-        chatMessage.innerHTML = html;
+        chatMessage.innerHTML = this.messages.slice().reverse().map(item => {
+            const className = item.name === "Sam"
+                ? "messages__item messages__item--operator"
+                : "messages__item messages__item--visitor";
+            return `<div class="${className}">${item.message}</div>`;
+        }).join('');
+        
         chatMessage.scrollTop = chatMessage.scrollHeight;
     }
 }
