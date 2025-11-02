@@ -4,29 +4,41 @@ from chat import get_response
 import nltk
 import os
 
-# Set up NLTK data path (if needed)
-nltk.data.path.append(os.path.join("venv", "nltk_data"))
-
 app = Flask(__name__)
-CORS(app)  # allow cross-origin requests (for frontend access)
+CORS(app)  # Enables frontend (Render / JS) to call the backend
 
-# Serve main page
+# ✅ Make sure NLTK data path exists (avoid lookup errors)
+nltk_data_path = os.path.join(os.getcwd(), "nltk_data")
+if os.path.exists(nltk_data_path):
+    nltk.data.path.append(nltk_data_path)
+else:
+    print("⚠️ NLTK data folder not found, using default path.")
+
+# ✅ Main route - serve the frontend page
 @app.route("/", methods=["GET"])
-def index_get():
+def index():
     return render_template("base.html")
 
-# Handle messages from frontend
+# ✅ Chatbot API endpoint
 @app.route("/predict", methods=["POST"])
 def predict():
-    data = request.get_json()
-    message = data.get("message")
+    try:
+        data = request.get_json(force=True)
+        message = data.get("message")
 
-    if not message:
-        return jsonify({"answer": "Please type something, babe 😅"})
+        if not message or message.strip() == "":
+            return jsonify({"answer": "Please type something, babe 😅"}), 400
 
-    response = get_response(message)
-    return jsonify({"answer": response})
+        # Call your ML model / logic
+        response = get_response(message)
+        return jsonify({"answer": response})
 
-# Only for local dev (Render uses Gunicorn)
+    except Exception as e:
+        print("🔥 Internal Server Error:", e)
+        return jsonify({"answer": f"Oops! Server error: {str(e)}"}), 500
+
+# ✅ For local debugging only — Render uses Gunicorn to start automatically
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    # Make sure to match the Render port (environment variable `PORT`)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=True)
